@@ -1,0 +1,97 @@
+#!/bin/bash
+menu(){
+echo "1 可以创建编号为10-99的虚拟机  "
+echo "2 可以创建编号为001-009的虚拟机"
+echo "3 exit退出不执行脚本           "
+}
+install_vm1(){
+read -p "请输入虚拟机的序号(10-99):"   vm
+ virsh list --all |grep tedu_node${vm}
+  if [ $? -eq 0 ];then
+   echo "此虚拟机已存在" 
+    exit
+     fi
+read -p "请输入要输入的网卡名(eth0/eth1/eth2/eth3):"  wangka 
+read -p "请输入要输入的IP地址:"                       IP 
+
+yum=`yum repolist | awk -F: '/repolist/{print $2}' |sed 's/,//'`
+[ $yum -gt 0 ] && echo "yum源可用" || echo "yum源不可用"
+rpm -q expect 
+if [ $? -eq 0 ];then
+echo "expect 已经安装"
+else
+echo "expect 未安装"
+yum -y install expect
+fi
+
+expect <<EOF
+spawn clone-vm7
+expect "Enter VM number:" {send "$vm\r"}
+expect "#"                {send "exit\r"}
+expect "#"                {send "exit\r"}
+EOF
+
+virsh start tedu_node$vm
+expect <<oppo
+set timeout 35
+spawn virsh console tedu_node$vm
+expect "localhost login:"         {send "root\r"}
+expect "Password:"                 {send "123456\r"}
+expect "#"                         {send "nmcli connection modify ${wangka} ipv4.method manual ipv4.addresses ${IP}/24 connection.autoconnect yes\r"}
+expect "#"                         {send "nmcli connection up ${wangka}\r"}
+expect "#"                         {send "exit\r"}
+oppo
+}
+install_vm2(){
+read -p "请输入虚拟机的序号(01-09):"   vmv
+ virsh list --all |grep tedu_node${vmv}
+  if [ $? -eq 0 ];then
+   echo "此虚拟机已存在" 
+    exit
+     fi
+read -p "请输入要输入的网卡名(eth0/eth1/eth2/eth3):"  wangka 
+read -p "请输入要输入的IP地址:"                       IP 
+
+yum=`yum repolist | awk -F: '/repolist/{print $2}' |sed 's/,//'`
+[ $yum -gt 0 ] && echo "yum源可用" || echo "yum源不可用"
+rpm -q expect 
+if [ $? -eq 0 ];then
+echo "expect 已经安装"
+else
+echo "expect 未安装"
+yum -y install expect
+fi
+
+expect <<EOF
+spawn clone-vm7
+expect "Enter VM number:" {send "$vmv\r"}
+expect "#"                {send "exit\r"}
+expect "#"                {send "exit\r"}
+EOF
+
+virsh start tedu_node0${vmv}
+expect <<oppo
+set timeout 35
+spawn virsh console tedu_node0$vmv
+expect "localhost login:"         {send "root\r"}
+expect "Password:"                 {send "123456\r"}
+expect "#"                         {send "nmcli connection modify ${wangka} ipv4.method manual ipv4.addresses ${IP}/24 connection.autoconnect yes\r"}
+expect "#"                         {send "nmcli connection up ${wangka}\r"}
+expect "#"                         {send "exit\r"}
+oppo
+}
+while :
+do
+ menu
+read -p "请输入你要创建的虚拟项(1-3):"  zz
+case $zz in
+1)
+  install_vm1;;
+2)
+  install_vm2;;
+3)
+  exit;;
+*)
+  echo "输入错误";;
+esac
+done
