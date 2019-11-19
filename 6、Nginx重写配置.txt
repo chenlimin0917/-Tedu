@@ -1,0 +1,148 @@
+1、所有访问a.html的请求，重定向到b.html;
+ [root@proxy ~]# vim /usr/local/nginx/conf/nginx.conf 
+    server {
+        listen       80;
+        server_name  localhost;
+rewrite /a.html  /b.html;			
+
+location / {
+	root   html;
+index  index.html index.htm;
+}
+}
+ 
+2、rewrite /a.html  /b.html redirect; 访问地址栏实现跳转
+
+3、所有访问192.168.4.5的请求重定向至www.tmooc.cn；（###注意访问4.5的那台主要要能上外网，或者虚拟机本身可以上外网都可以）
+
+[root@proxy ~]# vim /usr/local/nginx/conf/nginx.conf
+.. ..
+server {
+        listen       80;
+        server_name  localhost;
+rewrite ^/  http://www.tmooc.cn/;
+location / {
+	root   html;
+index  index.html index.htm;
+# rewrite /a.html  /b.html  redirect;
+}
+}
+
+4、步骤四：修改配置文件(访问192.168.4.5/下面子页面，重定向至www.tmooc.cn/下相同的页面)
+
+1) 修改Nginx服务配置
+
+[root@proxy ~]# vim /usr/local/nginx/conf/nginx.conf
+
+.. ..
+server {
+        listen       80;
+        server_name  localhost;
+rewrite ^/(.*)$  http://www.tmooc.cn/$1;
+location / {
+	root   html;
+index  index.html index.htm;
+}
+}
+2）重新加载配置文件
+
+[root@proxy ~]# /usr/local/nginx/sbin/nginx  -s  reload
+
+3）客户端测试（真实机测试，真实机才可以连接tmooc）
+[root@room9pc01 ~]# firefox  http://192.168.4.5
+[root@room9pc01 ~]# firefox  http://192.168.4.5/test    ##如www.tmooc.cn/search是存在的，访问就OK。
+
+5、修改配置文件(实现curl和火狐访问相同链接返回的页面不同)
+
+1) 创建网页目录以及对应的页面文件：
+
+[root@proxy ~]# echo "I am Normal page" > /usr/local/nginx/html/test.html
+
+[root@proxy ~]# mkdir  -p  /usr/local/nginx/html/firefox/
+[root@proxy ~]# echo "firefox page" > /usr/local/nginx/html/firefox/test.html
+2) 修改Nginx服务配置
+
+[root@proxy ~]# vim /usr/local/nginx/conf/nginx.conf
+.. ..
+server {
+        listen       80;
+        server_name  localhost;
+location / {
+	root   html;
+index  index.html index.htm;
+}
+#这里，~符号代表正则匹配，*符号代表不区分大小写
+if ($http_user_agent ~* firefox) {			//识别客户端firefox浏览器
+rewrite ^(.*)$  /firefox/$1;
+}
+}
+3）重新加载配置文件
+
+[root@proxy ~]# /usr/local/nginx/sbin/nginx  -s  reload
+
+[root@client ~]# firefox  http://192.168.4.5/test.html
+[root@client ~]# curl     http://192.168.4.5/test.html
+
+
+
+拓展知识点 last(匹配即停止，不再读其它的重写规则)
+                  break（不再匹配其它location和重写规则）
+ server {
+        listen       80;
+        server_name  www.a.com;
+       location  /a.html {
+       rewrite /a.html /b.html break;
+  }
+    location  /b.html {
+        rewrite /b.html /c.html;
+  }
+
+
+案例成功OK
+ 
+ server {
+        listen       80;
+        server_name  www.a.com;
+      
+   location  /a.html {
+       rewrite /a.html /d.html last;
+       rewrite /b.html /d.html;
+} 
+   location  /b.html {
+       rewrite /b.html /c.html last;
+  }
+   location  /d.html {
+        rewrite /d.html /b.html;
+  }
+  访问a ----结果c
+  访问b----结果c
+  访问c----结果c自己
+  访问d----结果c
+
+备注：  
+      nginx的四层调度 客户端访问----proxy  ssh 192.168.4.5 -p 12345 要想远程无秘钥实现ng的跳转，将客户端额公钥发送到proxy、web1、web2即可。
+
+
+优化后，查看状态页面信息
+
+[root@proxy ~]# curl  http://192.168.4.5/status
+Active connections: 1 
+server accepts handled requests
+              10         10           3             （只要Nginx服务不挂，这个值就是累计下来的。）                                    
+Reading: 0 Writing: 1 Waiting: 0    
+
+Active connections：当前活动的连接数量。
+
+Accepts：已经接受客户端的连接总数量。
+
+Handled：已经处理客户端的连接总数量。
+
+（一般与accepts一致，除非服务器限制了连接数量）。
+
+Requests：客户端发送的请求数量。
+
+Reading：当前服务器正在读取客户端请求头的数量。
+
+Writing：当前服务器正在写响应信息的数量。
+
+Waiting：当前多少客户端在等待服务器的响应。
